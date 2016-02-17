@@ -15,7 +15,7 @@ stdenv.mkDerivation {
   buildInputs = with pkgs;
     [cmake curl readline ncurses gnuplot nodejs unzip nodePackages.npm
      libjpeg libpng imagemagick fftw sox zeromq3 qt4 pythonPackages.ipython
-     czmq openblas bash which nvidia_cg_toolkit
+     czmq openblas bash which cudatoolkit
     ];
 
   buildCommand = ''
