@@ -20,13 +20,14 @@ stdenv.mkDerivation {
 
   buildCommand = ''
     . $stdenv/setup
+    export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:${readline}/lib"
     mkdir -pv $out
     cp -r $src .
     chown -R `whoami` */
     chmod -R +w */
     cd */
     ls -lh
-    bash ./install.sh
+    bash ./install.sh -b -s
   '';
 }
 
