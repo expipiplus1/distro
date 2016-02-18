@@ -5,8 +5,7 @@
 , stdenv ? pkgs.stdenv
 } :
 
-let
-in
+with pkgs;
 
 stdenv.mkDerivation {
   name = "torch";
