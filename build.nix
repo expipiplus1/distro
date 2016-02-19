@@ -14,18 +14,20 @@ stdenv.mkDerivation {
   buildInputs = with pkgs;
     [cmake curl readline ncurses gnuplot nodejs unzip nodePackages.npm
      libjpeg libpng imagemagick fftw sox zeromq3 qt4 pythonPackages.ipython
-     czmq openblas bash which cudatoolkit
+     czmq openblas bash which cudatoolkit libuuid
     ];
 
   buildCommand = ''
     . $stdenv/setup
-    export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:${readline}/lib"
     mkdir -pv $out
     cp -r $src .
     chown -R `whoami` */
     chmod -R +w */
     cd */
-    ls -lh
+
+    export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:${readline}/lib"
+    export CMAKE_LIBRARY_PATH="${openblas}/include:${openblas}/lib:$CMAKE_LIBRARY_PATH"
+    export PREFIX=$out
     bash ./install.sh -b -s
   '';
 }
