@@ -7,7 +7,13 @@
 
 with pkgs;
 
-stdenv.mkDerivation {
+let
+
+# luajit = import ../luajit/luajit.nix {inherit pkgs;};
+
+in
+
+stdenv.mkDerivation rec {
   name = "torch";
   src = ./.;
 
@@ -16,6 +22,20 @@ stdenv.mkDerivation {
      libjpeg libpng imagemagick fftw sox zeromq3 qt4 pythonPackages.ipython
      czmq openblas bash which cudatoolkit libuuid makeWrapper
     ];
+
+  luajit_dir = "./exe/luajit-rocks/luajit-2.1";
+
+  luajit_patchPhase = ''
+
+    substituteInPlace ${luajit_dir}/Makefile \
+          --replace /usr/local $out
+
+    substituteInPlace ${luajit_dir}/src/Makefile --replace gcc cc
+  '' + stdenv.lib.optionalString (stdenv.cc.libc != null)
+  ''
+    substituteInPlace ${luajit_dir}/Makefile \
+      --replace ldconfig ${stdenv.cc.libc}/sbin/ldconfig
+  '';
 
   buildCommand = ''
     . $stdenv/setup
@@ -26,6 +46,8 @@ stdenv.mkDerivation {
     cd */
 
     mkdir -pv $out/home
+
+    ${luajit_patchPhase}
 
     export HOME=$out/home
     export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:${readline}/lib"
