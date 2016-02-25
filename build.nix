@@ -53,7 +53,7 @@ stdenv.mkDerivation rec {
     export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:${readline}/lib"
     export CMAKE_LIBRARY_PATH="${openblas}/include:${openblas}/lib:$CMAKE_LIBRARY_PATH"
     export PREFIX=$out
-    bash ./install.sh -b -s
+    bash ./install.sh -b
 
     for p in $out/bin/*; do
       wrapProgram $p \
