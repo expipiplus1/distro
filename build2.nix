@@ -7,7 +7,7 @@ let
   trace = builtins.trace;
 
 
-  inherit (pkgs) lib stdenv callPackage writeText;
+  inherit (pkgs) lib stdenv callPackage writeText readline makeWrapper;
 
   luapkgs = rec {
 
@@ -66,7 +66,8 @@ let
         <nixpkgs/pkgs/development/tools/misc/luarocks>
         { lua = luajit; };
 
-    buildLuaRocks = { rockspec ? "", luadeps ? [] , buildInputs ? [] , preBuild ? "" , ... }@args :
+    buildLuaRocks = { rockspec ? "", luadeps ? [] , buildInputs ? []
+                    , preBuild ? "" , ... }@args :
       let
         mkcfg = ''
           export LUAROCKS_CONFIG=config.lua
@@ -85,15 +86,22 @@ let
         '';
       in
       stdenv.mkDerivation (args // {
-        buildInputs = buildInputs ++ [ luajit ];
-        phases = [ "unpackPhase" "patchPhase" "buildPhase" ];
-        inherit preBuild;
+        buildInputs = buildInputs ++ [ makeWrapper luajit ];
+        phases = [ "unpackPhase" "patchPhase" "buildPhase"];
+        inherit preBuild ;
 
         buildPhase = ''
           eval "$preBuild"
           ${mkcfg}
           eval "`${luarocks}/bin/luarocks --deps-mode=all --tree=$out path`"
           ${luarocks}/bin/luarocks make --deps-mode=all --tree=$out ${rockspec}
+
+          for p in $out/bin/*; do
+            wrapProgram $p \
+              --set LD_LIBRARY_PATH "${readline}/lib" \
+              --set PATH "${luajit}/bin" \
+              --set LUA_PATH "'$LUA_PATH'"
+          done
         '';
       });
 
