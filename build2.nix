@@ -136,32 +136,36 @@ let
       rockspec = "rocks/${name}-scm-1.rockspec";
     };
 
+    # TODO: merge buildTorch with generic buildLuaRocks
     buildTorch = { rockspec ? "", luadeps ? [] , buildInputs ? [] , preBuild ? "" , ... }@args :
       let
-        cfg = writeText "luarocs.lua" ''
+        mkcfg = ''
+          export LUAROCKS_CONFIG=config.lua
+          cat >config.lua <<EOF
             rocks_trees = {
                  { name = [[system]], root = [[${luarocks}]] }
                ${lib.concatImapStrings (i : dep :  ", { name = [[dep${toString i}]], root = [[${dep}]] }") luadeps}
             }
+
+            variables = {
+              LUA_BINDIR = "$out/bin";
+              LUA_INCDIR = "$out/include";
+              LUA_LIBDIR = "$out/lib/lua/${luajit.luaversion}";
+            };
+          EOF
         '';
       in
       stdenv.mkDerivation (args // {
         buildInputs = buildInputs ++ [ luajit ];
-        # phases = [ "unpackPhase" "patchPhase" "buildPhase" ];
+        phases = [ "unpackPhase" "patchPhase" "buildPhase" ];
         inherit preBuild;
-        preConfigure = ''
-          export cmakeFlags="-DLUA=${luajit}/bin/luajit -DLUA_BINDIR=$out/bin -DLUA_INCDIR=$out/include -DLUA_LIBDIR=$out/lib/lua/${luajit.luaversion}"
-          export LUA_PATH="$src/?.lua;$LUA_PATH"
-          export LUAROCKS_CONFIG=${cfg}
-          eval "`${luarocks}/bin/luarocks --deps-mode=all --tree=$out path`"
-        '';
 
-        # buildPhase = ''
-        #   eval "$preBuild"
-        #   export LUAROCKS_CONFIG=${cfg}
-        #   eval "`${luarocks}/bin/luarocks --deps-mode=all --tree=$out path`"
-        #   ${luarocks}/bin/luarocks make --deps-mode=all --tree=$out ${rockspec}
-        # '';
+        buildPhase = ''
+          ${mkcfg}
+          export LUA_PATH="$src/?.lua;$LUA_PATH"
+          eval "`${luarocks}/bin/luarocks --deps-mode=all --tree=$out path`"
+          ${luarocks}/bin/luarocks make --deps-mode=all --tree=$out ${rockspec}
+        '';
       });
 
     torch = buildTorch rec {
@@ -184,6 +188,7 @@ let
     trepl = buildLuaRocks rec {
       name = "trepl";
       luadeps = [torch penlight];
+      buildInputs = [pkgs.readline];
       src = ./exe/trepl;
     };
   };
