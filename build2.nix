@@ -100,7 +100,8 @@ let
             wrapProgram $p \
               --set LD_LIBRARY_PATH "${readline}/lib" \
               --set PATH "${luajit}/bin" \
-              --set LUA_PATH "'$LUA_PATH'"
+              --set LUA_PATH "'$LUA_PATH;$out/share/lua/${luajit.luaversion}/?.lua;$out/share/lua/${luajit.luaversion}/?/init.lua'" \
+              --set LUA_CPATH "'$LUA_CPATH;$out/lib/lua/${luajit.luaversion}/?.so;$out/lib/lua/${luajit.luaversion}/?/init.so'"
           done
         '';
       });
