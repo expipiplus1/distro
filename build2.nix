@@ -74,7 +74,7 @@ let
             rocks_trees = {
                  { name = [[system]], root = [[${luarocks}]] }
                ${lib.concatImapStrings (i : dep :  ", { name = [[dep${toString i}]], root = [[${dep}]] }") luadeps}
-            }
+            };
 
             variables = {
               LUA_BINDIR = "$out/bin";
@@ -161,6 +161,17 @@ let
       luadeps = [torch penlight];
       buildInputs = [pkgs.readline];
       src = ./exe/trepl;
+    };
+
+    sys = buildLuaRocks rec {
+      name = "sys";
+      luadeps = [torch];
+      buildInputs = [pkgs.readline pkgs.cmake];
+      src = ./pkg/sys;
+      rockspec = "sys-1.1-0.rockspec";
+      preBuild = ''
+        export Torch_DIR=${torch}/share/cmake/torch
+      '';
     };
   };
 
