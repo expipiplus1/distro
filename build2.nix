@@ -7,7 +7,8 @@ let
   trace = builtins.trace;
 
 
-  inherit (pkgs) lib stdenv callPackage writeText readline makeWrapper;
+  inherit (pkgs) lib stdenv callPackage writeText readline makeWrapper
+    ncurses cmake;
 
   luapkgs = rec {
 
@@ -67,14 +68,17 @@ let
         { lua = luajit; };
 
     buildLuaRocks = { rockspec ? "", luadeps ? [] , buildInputs ? []
-                    , preBuild ? "" , ... }@args :
+                    , preBuild ? "" , postInstall ? "" , ... }@args :
       let
-        mkcfg = ''
+
+        luadeps_ = luadeps ++ (lib.concatMap (d : if d ? luadeps then d.luadeps else []) luadeps);
+
+        mkcfg = trace (lib.length luadeps_) ''
           export LUAROCKS_CONFIG=config.lua
           cat >config.lua <<EOF
             rocks_trees = {
                  { name = [[system]], root = [[${luarocks}]] }
-               ${lib.concatImapStrings (i : dep :  ", { name = [[dep${toString i}]], root = [[${dep}]] }") luadeps}
+               ${lib.concatImapStrings (i : dep :  ", { name = [[dep${toString i}]], root = [[${dep}]] }") luadeps_}
             };
 
             variables = {
@@ -88,7 +92,8 @@ let
       stdenv.mkDerivation (args // {
         buildInputs = buildInputs ++ [ makeWrapper luajit ];
         phases = [ "unpackPhase" "patchPhase" "buildPhase"];
-        inherit preBuild ;
+        inherit preBuild postInstall;
+
 
         buildPhase = ''
           eval "$preBuild"
@@ -99,10 +104,12 @@ let
           for p in $out/bin/*; do
             wrapProgram $p \
               --set LD_LIBRARY_PATH "${readline}/lib" \
-              --set PATH "${luajit}/bin" \
+              --set PATH "$PATH" \
               --set LUA_PATH "'$LUA_PATH;$out/share/lua/${luajit.luaversion}/?.lua;$out/share/lua/${luajit.luaversion}/?/init.lua'" \
               --set LUA_CPATH "'$LUA_CPATH;$out/lib/lua/${luajit.luaversion}/?.so;$out/lib/lua/${luajit.luaversion}/?/init.so'"
           done
+
+          eval "$postInstall"
         '';
       });
 
@@ -114,6 +121,7 @@ let
     luafilesystem = buildLuaRocks {
       name = "filesystem";
       src = ./extra/luafilesystem;
+      luadeps = [lua-cjson];
       rockspec = "rockspecs/luafilesystem-1.6.3-1.rockspec";
     };
 
@@ -143,7 +151,7 @@ let
     paths = buildLuaRocks rec {
       name = "paths";
       src = pkg/paths;
-      buildInputs = [pkgs.cmake];
+      buildInputs = [cmake];
       rockspec = "rocks/${name}-scm-1.rockspec";
     };
 
@@ -168,7 +176,7 @@ let
     trepl = buildLuaRocks rec {
       name = "trepl";
       luadeps = [torch penlight];
-      buildInputs = [pkgs.readline];
+      buildInputs = [ readline ncurses ];
       src = ./exe/trepl;
     };
 
