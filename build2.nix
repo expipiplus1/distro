@@ -66,33 +66,35 @@ let
         <nixpkgs/pkgs/development/tools/misc/luarocks>
         { lua = luajit; };
 
-    buildLuaRocks = { rockspec ? "", luadeps ? [] , buildInputs ? [] , ... }@args :
+    buildLuaRocks = { rockspec ? "", luadeps ? [] , buildInputs ? [] , preBuild ? "" , ... }@args :
       let
-        cfg = writeText "luarocs.lua" ''
+        mkcfg = ''
+          export LUAROCKS_CONFIG=config.lua
+          cat >config.lua <<EOF
             rocks_trees = {
                  { name = [[system]], root = [[${luarocks}]] }
                ${lib.concatImapStrings (i : dep :  ", { name = [[dep${toString i}]], root = [[${dep}]] }") luadeps}
             }
+
+            variables = {
+              LUA_BINDIR = "$out/bin";
+              LUA_INCDIR = "$out/include";
+              LUA_LIBDIR = "$out/lib/lua/${luajit.luaversion}";
+            };
+          EOF
         '';
       in
       stdenv.mkDerivation (args // {
         buildInputs = buildInputs ++ [ luajit ];
-        # FIXME: was originally preBuild
-        configurePhase = ''
-          makeFlagsArray=(
-            PREFIX=$out
-            LUA_LIBDIR="$out/lib/lua/${luajit.luaversion}"
-            LUA_INC="-I${luajit}/include");
-        '';
+        phases = [ "unpackPhase" "patchPhase" "buildPhase" ];
+        inherit preBuild;
+
         buildPhase = ''
-          runHook preBuild
-          cp ${cfg} ./luarocks.lua
-          export LUAROCKS_CONFIG=./luarocks.lua
+          eval "$preBuild"
+          ${mkcfg}
           eval "`${luarocks}/bin/luarocks --deps-mode=all --tree=$out path`"
           ${luarocks}/bin/luarocks make --deps-mode=all --tree=$out ${rockspec}
-          runHook postBuild
         '';
-        dontInstall = true;
       });
 
     lua-cjson = buildLuaPackage {
@@ -136,45 +138,14 @@ let
       rockspec = "rocks/${name}-scm-1.rockspec";
     };
 
-    # TODO: merge buildTorch with generic buildLuaRocks
-    buildTorch = { rockspec ? "", luadeps ? [] , buildInputs ? [] , preBuild ? "" , ... }@args :
-      let
-        mkcfg = ''
-          export LUAROCKS_CONFIG=config.lua
-          cat >config.lua <<EOF
-            rocks_trees = {
-                 { name = [[system]], root = [[${luarocks}]] }
-               ${lib.concatImapStrings (i : dep :  ", { name = [[dep${toString i}]], root = [[${dep}]] }") luadeps}
-            }
-
-            variables = {
-              LUA_BINDIR = "$out/bin";
-              LUA_INCDIR = "$out/include";
-              LUA_LIBDIR = "$out/lib/lua/${luajit.luaversion}";
-            };
-          EOF
-        '';
-      in
-      stdenv.mkDerivation (args // {
-        buildInputs = buildInputs ++ [ luajit ];
-        phases = [ "unpackPhase" "patchPhase" "buildPhase" ];
-        inherit preBuild;
-
-        buildPhase = ''
-          ${mkcfg}
-          export LUA_PATH="$src/?.lua;$LUA_PATH"
-          eval "`${luarocks}/bin/luarocks --deps-mode=all --tree=$out path`"
-          ${luarocks}/bin/luarocks make --deps-mode=all --tree=$out ${rockspec}
-        '';
-      });
-
-    torch = buildTorch rec {
+    torch = buildLuaRocks rec {
       name = "torch";
       src = ./pkg/torch;
       luadeps = [ paths cwrap ];
       buildInputs = [ pkgs.cmake ];
       rockspec = "rocks/${name}-scm-1.rockspec";
       preBuild = ''
+        export LUA_PATH="$src/?.lua;$LUA_PATH"
       '';
     };
 
