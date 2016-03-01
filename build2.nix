@@ -136,7 +136,7 @@ let
       rockspec = "rocks/${name}-scm-1.rockspec";
     };
 
-    buildLuaRocks2 = { rockspec ? "", luadeps ? [] , buildInputs ? [] , preBuild ? "" , ... }@args :
+    buildTorch = { rockspec ? "", luadeps ? [] , buildInputs ? [] , preBuild ? "" , ... }@args :
       let
         cfg = writeText "luarocs.lua" ''
             rocks_trees = {
@@ -147,29 +147,44 @@ let
       in
       stdenv.mkDerivation (args // {
         buildInputs = buildInputs ++ [ luajit ];
-        phases = [ "unpackPhase" "patchPhase" "buildPhase" ];
+        # phases = [ "unpackPhase" "patchPhase" "buildPhase" ];
         inherit preBuild;
-        buildPhase = ''
-          makeFlagsArray=(
-            PREFIX=$out
-            LUA_LIBDIR="$out/lib/lua/${luajit.luaversion}"
-            LUA_INC="-I${luajit}/include");
-          eval "$preBuild"
+        preConfigure = ''
+          export cmakeFlags="-DLUA=${luajit}/bin/luajit -DLUA_BINDIR=$out/bin -DLUA_INCDIR=$out/include -DLUA_LIBDIR=$out/lib/lua/${luajit.luaversion}"
+          export LUA_PATH="$src/?.lua;$LUA_PATH"
           export LUAROCKS_CONFIG=${cfg}
           eval "`${luarocks}/bin/luarocks --deps-mode=all --tree=$out path`"
-          ${luarocks}/bin/luarocks make --deps-mode=all --tree=$out ${rockspec}
         '';
+
+        # buildPhase = ''
+        #   eval "$preBuild"
+        #   export LUAROCKS_CONFIG=${cfg}
+        #   eval "`${luarocks}/bin/luarocks --deps-mode=all --tree=$out path`"
+        #   ${luarocks}/bin/luarocks make --deps-mode=all --tree=$out ${rockspec}
+        # '';
       });
 
-    torch = buildLuaRocks2 rec {
+    torch = buildTorch rec {
       name = "torch";
-      src = pkg/torch;
+      src = ./pkg/torch;
       luadeps = [ paths cwrap ];
       buildInputs = [ pkgs.cmake ];
       rockspec = "rocks/${name}-scm-1.rockspec";
       preBuild = ''
-        export LUA_PATH="$src/?.lua;$LUA_PATH"
       '';
+    };
+
+    dok = buildLuaRocks rec {
+      name = "dok";
+      src = ./pkg/dok;
+      luadeps = [sundown];
+      rockspec = "rocks/${name}-scm-1.rockspec";
+    };
+
+    trepl = buildLuaRocks rec {
+      name = "trepl";
+      luadeps = [torch penlight];
+      src = ./exe/trepl;
     };
   };
 
