@@ -4,11 +4,12 @@
 } :
 
 let
-  trace = builtins.trace;
-
 
   inherit (pkgs) lib stdenv callPackage writeText readline makeWrapper
-    ncurses cmake;
+    less ncurses cmake openblas coreutils;
+
+  trace = builtins.trace;
+  # trace = with lib; const id;
 
   luapkgs = rec {
 
@@ -68,12 +69,20 @@ let
         { lua = luajit; };
 
     buildLuaRocks = { rockspec ? "", luadeps ? [] , buildInputs ? []
-                    , preBuild ? "" , postInstall ? "" , ... }@args :
+                    , preBuild ? "" , postInstall ? ""
+                    , runtimeDeps ? [] ,  ... }@args :
       let
 
-        luadeps_ = luadeps ++ (lib.concatMap (d : if d ? luadeps then d.luadeps else []) luadeps);
+        luadeps_ =
+          luadeps ++
+          (lib.concatMap (d : if d ? luadeps then d.luadeps else []) luadeps);
 
-        mkcfg = trace (lib.length luadeps_) ''
+        runtimeDeps_ =
+          runtimeDeps ++
+          (lib.concatMap (d : if d ? runtimeDeps then d.runtimeDeps else []) luadeps) ++
+          [ luajit coreutils ];
+
+        mkcfg = ''
           export LUAROCKS_CONFIG=config.lua
           cat >config.lua <<EOF
             rocks_trees = {
@@ -88,12 +97,17 @@ let
             };
           EOF
         '';
+
       in
       stdenv.mkDerivation (args // {
-        buildInputs = buildInputs ++ [ makeWrapper luajit ];
-        phases = [ "unpackPhase" "patchPhase" "buildPhase"];
+
         inherit preBuild postInstall;
 
+        inherit luadeps runtimeDeps;
+
+        phases = [ "unpackPhase" "patchPhase" "buildPhase"];
+
+        buildInputs = runtimeDeps ++ buildInputs ++ [ makeWrapper luajit ];
 
         buildPhase = ''
           eval "$preBuild"
@@ -103,8 +117,8 @@ let
 
           for p in $out/bin/*; do
             wrapProgram $p \
-              --set LD_LIBRARY_PATH "${readline}/lib" \
-              --set PATH "$PATH" \
+              --set LD_LIBRARY_PATH "${lib.makeSearchPath "lib" runtimeDeps_}" \
+              --set PATH "${lib.makeSearchPath "bin" runtimeDeps_}" \
               --set LUA_PATH "'$LUA_PATH;$out/share/lua/${luajit.luaversion}/?.lua;$out/share/lua/${luajit.luaversion}/?/init.lua'" \
               --set LUA_CPATH "'$LUA_CPATH;$out/lib/lua/${luajit.luaversion}/?.so;$out/lib/lua/${luajit.luaversion}/?/init.so'"
           done
@@ -159,7 +173,7 @@ let
       name = "torch";
       src = ./pkg/torch;
       luadeps = [ paths cwrap ];
-      buildInputs = [ pkgs.cmake ];
+      buildInputs = [ cmake openblas ];
       rockspec = "rocks/${name}-scm-1.rockspec";
       preBuild = ''
         export LUA_PATH="$src/?.lua;$LUA_PATH"
@@ -173,23 +187,94 @@ let
       rockspec = "rocks/${name}-scm-1.rockspec";
     };
 
-    trepl = buildLuaRocks rec {
-      name = "trepl";
-      luadeps = [torch penlight];
-      buildInputs = [ readline ncurses ];
-      src = ./exe/trepl;
-    };
-
     sys = buildLuaRocks rec {
       name = "sys";
       luadeps = [torch];
-      buildInputs = [pkgs.readline pkgs.cmake];
+      buildInputs = [readline cmake];
       src = ./pkg/sys;
       rockspec = "sys-1.1-0.rockspec";
       preBuild = ''
         export Torch_DIR=${torch}/share/cmake/torch
       '';
     };
+
+    xlua = buildLuaRocks rec {
+      name = "xlua";
+      luadeps = [torch sys];
+      src = ./pkg/xlua;
+      rockspec = "xlua-1.0-0.rockspec";
+    };
+
+    nn = buildLuaRocks rec {
+      name = "nn";
+      luadeps = [torch luaffifb];
+      buildInputs = [cmake];
+      src = ./extra/nn;
+      rockspec = "rocks/nn-scm-1.rockspec";
+      preBuild = ''
+        export Torch_DIR=${torch}/share/cmake/torch
+      '';
+    };
+
+    graph = buildLuaRocks rec {
+      name = "graph";
+      luadeps = [ torch ];
+      buildInputs = [cmake];
+      src = ./extra/graph;
+      rockspec = "rocks/graph-scm-1.rockspec";
+      preBuild = ''
+        export Torch_DIR=${torch}/share/cmake/torch
+      '';
+    };
+
+    nngraph = buildLuaRocks rec {
+      name = "nngraph";
+      luadeps = [ torch nn graph ];
+      buildInputs = [cmake];
+      src = ./extra/nngraph;
+      preBuild = ''
+        export Torch_DIR=${torch}/share/cmake/torch
+      '';
+    };
+
+    image = buildLuaRocks rec {
+      name = "image";
+      luadeps = [ torch dok sys xlua ];
+      buildInputs = [cmake];
+      src = ./pkg/image;
+      rockspec = "image-1.1.alpha-0.rockspec";
+      preBuild = ''
+        export Torch_DIR=${torch}/share/cmake/torch
+      '';
+    };
+
+    optim = buildLuaRocks rec {
+      name = "optim";
+      luadeps = [ torch ];
+      buildInputs = [cmake];
+      src = ./pkg/optim;
+      rockspec = "optim-1.0.5-0.rockspec";
+      preBuild = ''
+        export Torch_DIR=${torch}/share/cmake/torch
+      '';
+    };
+
+    gnuplot = buildLuaRocks rec {
+      name = "gnuplot";
+      luadeps = [ torch paths ];
+      runtimeDeps = [ pkgs.gnuplot less ];
+      src = ./pkg/gnuplot;
+      rockspec = "rocks/gnuplot-scm-1.rockspec";
+    };
+
+    trepl = buildLuaRocks rec {
+      name = "trepl";
+      luadeps = [torch gnuplot paths penlight graph nn nngraph image gnuplot optim sys dok];
+      runtimeDeps = [ ncurses readline ];
+      src = ./exe/trepl;
+    };
+
+
   };
 
 in
