@@ -190,7 +190,7 @@ let
       name = "torch";
       src = ./pkg/torch;
       luadeps = [ paths cwrap ];
-      buildInputs = [ cmake openblas ];
+      buildInputs = [ cmake ];
       rockspec = "rocks/${name}-scm-1.rockspec";
       preBuild = ''
         export LUA_PATH="$src/?.lua;$LUA_PATH"
@@ -304,6 +304,7 @@ let
       name = "luuid";
       src = fetchgit {
         url = "https://github.com/LuaDist/luuid";
+        # FIXME: set the revision
         #rev = ;
         sha256 = "062gdf1rild11jg46vry93hcbb36b4527pf1dy7q9fv89f7m2nav";
       };
@@ -315,7 +316,7 @@ let
       buildInputs = [cmake libuuid luajit];
     };
 
-    # Doesn't work due to missing deps
+    # Doesn't work due to missing deps (according to luarocs).
     itorch = buildLuaRocks rec {
       name = "itorch";
       luadeps = [torch gnuplot paths penlight graph nn nngraph image gnuplot
