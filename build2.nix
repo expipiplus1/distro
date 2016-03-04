@@ -6,7 +6,7 @@
 let
 
   inherit (pkgs) lib stdenv callPackage writeText readline makeWrapper
-    less ncurses cmake openblas coreutils;
+    less ncurses cmake openblas coreutils fetchgit libuuid czmq openssl;
 
   trace = builtins.trace;
   # trace = with lib; const id;
@@ -127,9 +127,26 @@ let
         '';
       });
 
-    lua-cjson = buildLuaPackage {
+    # FIXME: doesn't installs lua-files for some reason
+    # lua-cjson = buildLuaPackage {
+    #   name = "lua-cjson";
+    #   src = ./extra/lua-cjson;
+    #   rockspec = "lua-cjson-2.1devel-1.rockspec";
+    # };
+
+    lua-cjson = stdenv.mkDerivation rec {
       name = "lua-cjson";
       src = ./extra/lua-cjson;
+
+      preConfigure = ''
+        makeFlags="PREFIX=$out LUA_LIBRARY=$out/lib/lua"
+      '';
+
+      buildInputs = [luajit];
+
+      installPhase = ''
+        make install-extra $makeFlags
+      '';
     };
 
     luafilesystem = buildLuaRocks {
@@ -272,6 +289,39 @@ let
       luadeps = [torch gnuplot paths penlight graph nn nngraph image gnuplot optim sys dok];
       runtimeDeps = [ ncurses readline ];
       src = ./exe/trepl;
+    };
+
+    lbase64 = buildLuaRocks rec {
+      name = "lbase64";
+      src = fetchgit {
+        url = "https://github.com/LuaDist2/lbase64";
+        rev = "1e9e4f1e0bf589a0ed39f58acc185ec5e213d207";
+        sha256 = "1i1fpy9v6r4w3lrmz7bmf5ppq65925rv90gx39b3pykfmn0hcb9c";
+      };
+    };
+
+    luuid = stdenv.mkDerivation rec {
+      name = "luuid";
+      src = fetchgit {
+        url = "https://github.com/LuaDist/luuid";
+        #rev = ;
+        sha256 = "062gdf1rild11jg46vry93hcbb36b4527pf1dy7q9fv89f7m2nav";
+      };
+
+      preConfigure = ''
+        cmakeFlags="-DLUA_LIBRARY=${luajit}/lib/lua/${luajit.luaversion} -DINSTALL_CMOD=$out/lib/lua/${luajit.luaversion} -DINSTALL_MOD=$out/lib/lua/${luajit.luaversion}"
+      '';
+
+      buildInputs = [cmake libuuid luajit];
+    };
+
+    # Doesn't work due to missing deps
+    itorch = buildLuaRocks rec {
+      name = "itorch";
+      luadeps = [torch gnuplot paths penlight graph nn nngraph image gnuplot
+                  optim sys dok lbase64 lua-cjson luuid];
+      buildInputs = [czmq openssl];
+      src = ./extra/iTorch;
     };
 
 
