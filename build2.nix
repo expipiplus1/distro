@@ -193,6 +193,8 @@ let
       buildInputs = [ cmake ];
       rockspec = "rocks/${name}-scm-1.rockspec";
       preBuild = ''
+        substituteInPlace ${rockspec} \
+          --replace '"sys >= 1.0"' ' '
         export LUA_PATH="$src/?.lua;$LUA_PATH"
       '';
     };
